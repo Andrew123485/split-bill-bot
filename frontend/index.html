@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Сплит Чека | @warok18bot</title>
+  <!-- Telegram Web App SDK -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css?v=2.1">
+</head>
+<body>
+  <div id="app" class="app-container">
+    <!-- New Bill Alert Banner -->
+    <div id="newBillBanner" class="new-bill-banner" style="display: none;">
+      <div class="banner-content">
+        <span class="banner-icon">🔔</span>
+        <div class="banner-text">
+          <strong>Загружен новый чек!</strong>
+          <span id="newBillBannerInfo"></span>
+        </div>
+      </div>
+      <button class="banner-btn" id="switchToNewBillBtn">Открыть ➔</button>
+    </div>
+
+    <!-- Empty State -->
+    <div id="emptyState" class="empty-state" style="display: none;">
+      <div class="empty-icon">🧾</div>
+      <h2>Чеков пока нет</h2>
+      <p style="font-size: 13px; color: var(--text-muted); text-align: center; margin: 8px 0 16px 0;">
+        Все чеки были очищены. Отправьте новое фото чека с QR-кодом боту @warok18bot или загрузите демонстрационный чек.
+      </p>
+      <button class="btn btn-primary" id="createDemoBillBtn">
+        🚀 Загрузить демо-чек («Верный»)
+      </button>
+    </div>
+
+    <!-- Header -->
+    <header class="header" id="mainHeader">
+      <div class="header-top">
+        <div class="store-info">
+          <div class="store-badge-row">
+            <span class="store-badge" id="billStatus">Открыт</span>
+            <button class="switch-bill-btn" id="openBillsListBtn">🧾 Все чеки ▾</button>
+          </div>
+          <h1 id="billTitle">Загрузка чека...</h1>
+          <p class="bill-meta" id="billMeta">Общий сбор</p>
+        </div>
+        <div class="total-box">
+          <span class="total-label">Чек на сумму</span>
+          <span class="total-value" id="billTotal">0.00 ₽</span>
+        </div>
+      </div>
+
+      <!-- Payer Bar -->
+      <div class="payer-bar">
+        <div class="payer-info">
+          <span class="payer-title">👑 Оплатил(а):</span>
+          <strong id="headerPayerName">André</strong>
+          <span id="headerPayerPhone" class="payer-phone"></span>
+        </div>
+        <button class="change-payer-btn" id="openChangePayerModalBtn">Сменить ▾</button>
+      </div>
+
+      <!-- Current User Card -->
+      <div class="user-card">
+        <div class="user-avatar" id="userAvatar">👤</div>
+        <div class="user-details">
+          <div class="user-name-row">
+            <span class="user-name" id="userName">Гость</span>
+            <button class="edit-name-btn" id="openEditNameModalBtn" title="Изменить имя">✏️</button>
+          </div>
+          <span class="user-subtext">Вы делите этот чек</span>
+        </div>
+        <!-- Non-drinker quick toggle -->
+        <button class="nondrinker-toggle" id="toggleNondrinkerBtn" title="Не платить за алкоголь">
+          <span class="toggle-icon">🥤</span>
+          <span class="toggle-text">Я не пью</span>
+        </button>
+      </div>
+
+      <!-- Participants list chips -->
+      <div class="participants-container">
+        <div class="participants-top-row">
+          <span class="participants-label">В сборе:</span>
+          <div class="participants-actions">
+            <button class="add-friend-btn" id="openAddFriendModalBtn">➕ Добавить друга</button>
+            <button class="share-link-btn" id="shareBillBtn" title="Поделиться в Telegram">📲 Поделиться</button>
+          </div>
+        </div>
+        <div class="participants-chips" id="participantsList">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+    </header>
+
+    <!-- Content / Items -->
+    <main class="main-content">
+      <div class="section-title-row">
+        <h2>Позиции в чеке</h2>
+        <span class="items-count" id="itemsCount">0 товаров</span>
+      </div>
+
+      <div class="items-list" id="itemsContainer">
+        <!-- Skeleton loader -->
+        <div class="item-card skeleton"></div>
+        <div class="item-card skeleton"></div>
+        <div class="item-card skeleton"></div>
+      </div>
+
+      <!-- Add manual item button -->
+      <div class="add-item-bar">
+        <button class="add-item-btn" id="openAddItemModalBtn">
+          <span>➕ Добавить позицию</span>
+        </button>
+      </div>
+    </main>
+
+    <!-- Floating Sticky Bottom Bar -->
+    <footer class="bottom-bar">
+      <div class="my-share-info">
+        <span class="my-share-label">Ваша доля к оплате:</span>
+        <span class="my-share-amount" id="myShareAmount">0.00 ₽</span>
+      </div>
+      <button class="settle-btn" id="openSettleModalBtn">
+        <span>Взаиморасчёты</span>
+        <span class="arrow-icon">➔</span>
+      </button>
+    </footer>
+
+    <!-- Add Item Modal -->
+    <div class="modal-overlay" id="addItemModal" style="display: none;">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3>Добавить товар</h3>
+          <button class="close-btn" id="closeAddItemModalBtn">&times;</button>
+        </div>
+        <div class="modal-body">
+          <label class="form-label">Название товара</label>
+          <input type="text" id="newItemName" class="form-input" placeholder="например, Шашлык или Сок">
+
+          <div class="form-row">
+            <div class="form-col">
+              <label class="form-label">Цена (₽)</label>
+              <input type="number" id="newItemPrice" class="form-input" placeholder="350" step="0.01">
+            </div>
+            <div class="form-col">
+              <label class="form-label">Количество</label>
+              <input type="number" id="newItemQty" class="form-input" value="1" min="1" step="1">
+            </div>
+          </div>
+
+          <label class="form-label">Категория</label>
+          <select id="newItemCategory" class="form-input">
+            <option value="shared">🛒 Общак (делят все)</option>
+            <option value="alcohol">🍺 Алкоголь (только пьющие)</option>
+            <option value="personal">👤 Личное (только для меня)</option>
+          </select>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-primary" id="saveNewItemBtn">Добавить в чек</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Add Friend Modal -->
+    <div class="modal-overlay" id="addFriendModal" style="display: none;">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3>Добавить друга в сбор</h3>
+          <button class="close-btn" id="closeAddFriendModalBtn">&times;</button>
+        </div>
+        <div class="modal-body">
+          <label class="form-label">Имя друга</label>
+          <input type="text" id="newFriendName" class="form-input" placeholder="например, Коля или Маша">
+
+          <label class="checkbox-container">
+            <input type="checkbox" id="newFriendNondrinker">
+            <span>🥤 Не пьет алкоголь (не скидывается на алко)</span>
+          </label>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-primary" id="saveNewFriendBtn">Добавить в чек</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Edit Name Modal -->
+    <div class="modal-overlay" id="editNameModal" style="display: none;">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3>Ваше имя в чеке</h3>
+          <button class="close-btn" id="closeEditNameModalBtn">&times;</button>
+        </div>
+        <div class="modal-body">
+          <label class="form-label">Как вас зовут?</label>
+          <input type="text" id="editUserNameInput" class="form-input" placeholder="Введите имя (например: Саня)">
+          <p style="font-size: 11px; color: var(--text-muted); margin-top: 6px;">
+            Это имя увидят друзья на позициях чека и в расчёте переводов по СБП.
+          </p>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-primary" id="saveEditNameBtn">Сохранить имя</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Change Payer Modal -->
+    <div class="modal-overlay" id="changePayerModal" style="display: none;">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3>Кто оплатил чек?</h3>
+          <button class="close-btn" id="closeChangePayerModalBtn">&times;</button>
+        </div>
+        <div class="modal-body">
+          <label class="form-label">Выберите плательщика</label>
+          <select id="payerSelect" class="form-input">
+            <!-- Populated by JS -->
+          </select>
+
+          <label class="form-label">Номер телефона для СБП (куда переводить)</label>
+          <input type="text" id="payerPhoneInput" class="form-input" placeholder="+7 999 123-45-67">
+
+          <label class="form-label">Банк получателя</label>
+          <input type="text" id="payerBankInput" class="form-input" placeholder="Сбербанк, Т-Банк, ВТБ...">
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-primary" id="savePayerBtn">Сохранить плательщика</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Settlement / Breakdown Modal -->
+    <div class="modal-overlay" id="settleModal" style="display: none;">
+      <div class="modal-card modal-lg">
+        <div class="modal-header">
+          <h3>📊 Итоговые взаиморасчёты</h3>
+          <button class="close-btn" id="closeSettleModalBtn">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="settlement-payer-box" id="settlePayerBox">
+            <!-- Payer details -->
+          </div>
+
+          <h4 class="subheading">Доля каждого участника</h4>
+          <div class="shares-list" id="sharesBreakdownList">
+            <!-- Populated by JS -->
+          </div>
+
+          <h4 class="subheading">Кто кому переводит</h4>
+          <div class="transfers-list" id="transfersList">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+        <div class="modal-footer modal-footer-column">
+          <button class="btn btn-success" id="sendToChatBtn">
+            📢 Отправить расчет в чат Telegram
+          </button>
+          <button class="btn btn-secondary" id="closeSettleModalBottomBtn">
+            Закрыть
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bills List Modal -->
+    <div class="modal-overlay" id="billsModal" style="display: none;">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3>Ваши чеки</h3>
+          <button class="close-btn" id="closeBillsModalBtn">&times;</button>
+        </div>
+        <div class="modal-body">
+          <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">
+            Выберите чек для просмотра и разметки товаров:
+          </p>
+          <div class="bills-list" id="billsListContainer">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+        <div class="modal-footer" style="padding-top: 10px; border-top: 1px solid var(--border-color);">
+          <button class="btn btn-danger" id="clearAllBillsBtn" style="width: 100%; background: var(--danger); color: #fff; border: none; border-radius: 8px; padding: 10px; font-weight: 600; cursor: pointer;">
+            🗑 Удалить все чеки
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="/static/app.js?v=2.1"></script>
+</body>
+</html>
